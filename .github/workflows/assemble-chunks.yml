@@ -1,0 +1,40 @@
+name: Assemble chunks
+
+on:
+  push:
+    paths:
+      - "parts/**"
+      - ".github/workflows/assemble-chunks.yml"
+  workflow_dispatch:
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Concatenate verified parts into chunk files
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          parts = Path("parts")
+          for i in range(7):
+              files = sorted(parts.glob(f"chunk-{i:02d}.part*"))
+              if not files:
+                  continue
+              data = b"".join(p.read_bytes() for p in files)
+              dest = Path(f"chunk-{i:02d}.txt")
+              dest.write_bytes(data)
+              print(f"wrote {dest} {len(data)}")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add chunk-0*.txt
+          if git diff --cached --quiet; then
+            echo "no changes"
+          else
+            git commit -m "Assemble Call Ops chunks from verified parts"
+            git push
+          fi
